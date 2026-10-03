@@ -1,0 +1,39 @@
+# cargo-deny: what this crypto library is allowed to depend on.
+
+[advisories]
+# Any RustSec advisory against a dependency fails CI; yanked crates too.
+yanked = "deny"
+
+[licenses]
+# Permissive only. The desktop is MIT and the web client is closed source, so a
+# copyleft dependency (GPL/AGPL, e.g. libsignal) would change what we may ship.
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "Unicode-3.0",
+  "Zlib",
+  "CC0-1.0",
+  "OpenSSL",
+]
+confidence-threshold = 0.9
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+deny = [
+  # Abandoned or AGPL Signal protocol ports. Use km-core (vodozemac) instead.
+  { name = "libsignal-protocol" },
+  { name = "libsignal-core" },
+  { name = "libsignal-service" },
+  # Deprecated C libolm bindings; vodozemac replaced it.
+  { name = "olm-sys" },
+  { name = "olm-rs" },
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

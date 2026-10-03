@@ -1,0 +1,37 @@
+[workspace]
+resolver = "2"
+members = ["crates/km-proto", "crates/km-core", "crates/km-store-sqlcipher"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/official-kryo-to/kryoto-messaging"
+rust-version = "1.85"
+
+[workspace.dependencies]
+km-proto = { path = "crates/km-proto" }
+# Olm (1:1 Double Ratchet). Default features pull in libolm compatibility we
+# do not need; precomputed tables are a pure speed-up.
+vodozemac = { version = "0.11", default-features = false, features = ["precomputed-tables"] }
+# RFC 9180 HPKE for the sealed outer layer. Same crate and suite vodozemac uses.
+hpke = { version = "0.14", default-features = false, features = ["alloc", "getrandom", "x25519", "chacha"] }
+# Key backup sealing (XChaCha20-Poly1305); same crate hpke already uses.
+chacha20poly1305 = { version = "0.11", default-features = false, features = ["alloc"] }
+prost = "0.14"
+sha2 = "0.11"
+zeroize = { version = "1.9", features = ["derive", "serde"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+getrandom = "0.4"
+proptest = "1.11"
+# Desktop store. SQLCipher with OpenSSL built from source, so the result does
+# not depend on whatever libcrypto the user's machine has.
+rusqlite = { version = "0.40", default-features = false }
+hex = "0.4"
+km-core = { path = "crates/km-core" }
+
+[profile.test]
+# Key generation and HPKE are slow unoptimised; property tests run hundreds.
+opt-level = 2

@@ -1,0 +1,30 @@
+[package]
+name = "km-core"
+description = "Kryoto chat: keys, cross-signing, Olm sessions, sealed envelopes, safety numbers. No I/O."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+km-proto.workspace = true
+vodozemac.workspace = true
+hpke.workspace = true
+chacha20poly1305.workspace = true
+prost.workspace = true
+sha2.workspace = true
+zeroize.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+getrandom.workspace = true
+
+# The browser has no OS random source; route it to crypto.getRandomValues.
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
+getrandom = { workspace = true, features = ["wasm_js"] }
+vodozemac = { workspace = true, features = ["wasm_js"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+proptest.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = "0.3"

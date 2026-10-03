@@ -1,0 +1,24 @@
+[package]
+name = "km-store-sqlcipher"
+description = "Encrypted on-disk store for Kryoto chat state (desktop)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[features]
+default = ["sqlcipher"]
+# The real thing: SQLCipher, with OpenSSL compiled from source.
+sqlcipher = ["rusqlite/bundled-sqlcipher-vendored-openssl"]
+# LOCAL DEVELOPMENT ONLY, for machines that cannot build OpenSSL (it needs a
+# full Perl). The database is NOT encrypted. Refuses to compile in release.
+#   cargo test -p km-store-sqlcipher --no-default-features --features plain-sqlite-dev
+plain-sqlite-dev = ["rusqlite/bundled"]
+
+[dependencies]
+km-core.workspace = true
+rusqlite.workspace = true
+hex.workspace = true
+zeroize.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
