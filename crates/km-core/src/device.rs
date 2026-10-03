@@ -28,6 +28,7 @@ use hpke::{
 };
 use km_proto::{Content, OuterEnvelope, SealedContent, ENVELOPE_VERSION};
 use prost::Message as _;
+use sha2::{Digest, Sha256};
 use serde::{Deserialize, Serialize};
 use vodozemac::olm::{Account, AccountPickle, OlmMessage, Session, SessionConfig, SessionPickle};
 use vodozemac::Curve25519PublicKey;
@@ -79,6 +80,18 @@ pub struct LocalDevice {
     seal_public: [u8; 32],
     sessions: HashMap<[u8; 32], Vec<Session>>,
     seen: SeenIds,
+    /// Fingerprints of envelopes already decrypted. The server sends an
+    /// envelope again when it was not acknowledged (the app stopped after
+    /// storing it); by then the ratchet has moved on and it would no longer
+    /// decrypt, so it is recognised here as the duplicate it is.
+    seen_envelopes: SeenIds,
+}
+
+fn envelope_fingerprint(envelope: &[u8]) -> [u8; 16] {
+    let d = Sha256::digest(envelope);
+    let mut out = [0u8; 16];
+    out.copy_from_slice(&d[..16]);
+    out
 }
 
 impl std::fmt::Debug for LocalDevice {
@@ -105,6 +118,7 @@ impl LocalDevice {
             seal_public,
             sessions: HashMap::new(),
             seen: SeenIds::default(),
+            seen_envelopes: SeenIds::default(),
         }
     }
 
@@ -253,6 +267,10 @@ impl LocalDevice {
         lookup: impl FnOnce(u64, u64) -> Option<TrustedDevice>,
     ) -> Result<Inbound> {
         let my_id = self.require_id()?;
+        let fingerprint = envelope_fingerprint(envelope);
+        if self.seen_envelopes.contains(&fingerprint) {
+            return Err(CoreError::Duplicate);
+        }
         let outer = OuterEnvelope::decode(envelope).map_err(|_| CoreError::Malformed)?;
         if outer.version != ENVELOPE_VERSION {
             return Err(CoreError::UnsupportedVersion(outer.version));
@@ -283,6 +301,7 @@ impl LocalDevice {
         let plaintext = Zeroizing::new(self.olm_decrypt(curve, &olm)?);
         let content = Content::decode(plaintext.as_slice()).map_err(|_| CoreError::Malformed)?;
         let msg_id: [u8; 16] = content.msg_id.as_slice().try_into().map_err(|_| CoreError::Malformed)?;
+        self.seen_envelopes.insert(fingerprint);
         if !self.seen.insert(msg_id) {
             return Err(CoreError::Duplicate);
         }
@@ -347,6 +366,7 @@ impl LocalDevice {
                 .map(|(k, v)| (*k, v.iter().map(Session::pickle).collect()))
                 .collect(),
             seen: self.seen.order.iter().copied().collect(),
+            seen_envelopes: self.seen_envelopes.order.iter().copied().collect(),
         };
         serde_json::to_string(&snap).map(Zeroizing::new).map_err(|_| CoreError::State)
     }
@@ -362,6 +382,10 @@ impl LocalDevice {
         for id in snap.seen {
             seen.insert(id);
         }
+        let mut seen_envelopes = SeenIds::default();
+        for id in snap.seen_envelopes {
+            seen_envelopes.insert(id);
+        }
         Ok(Self {
             user_id: snap.user_id,
             device_id: snap.device_id,
@@ -375,6 +399,7 @@ impl LocalDevice {
                 .map(|(k, v)| (k, v.into_iter().map(Session::from_pickle).collect()))
                 .collect(),
             seen,
+            seen_envelopes,
         })
     }
 }
@@ -389,6 +414,8 @@ struct DeviceSnapshot {
     seal_secret: Zeroizing<Vec<u8>>,
     sessions: Vec<([u8; 32], Vec<SessionPickle>)>,
     seen: Vec<[u8; 16]>,
+    #[serde(default)]
+    seen_envelopes: Vec<[u8; 16]>,
 }
 
 /// Bounded set of message ids already delivered.
@@ -399,6 +426,10 @@ struct SeenIds {
 }
 
 impl SeenIds {
+    fn contains(&self, id: &[u8; 16]) -> bool {
+        self.set.contains(id)
+    }
+
     fn insert(&mut self, id: [u8; 16]) -> bool {
         if !self.set.insert(id) {
             return false;

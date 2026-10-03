@@ -117,6 +117,25 @@ fn snapshot_restore_continues_the_conversation() {
 }
 
 #[test]
+fn a_redelivered_envelope_is_a_duplicate_even_after_the_ratchet_moved_on() {
+    // The app stored and saved a message but stopped before acknowledging
+    // it, so the server sends it again after several more.
+    let mut alice = Person::new(1, 101);
+    let mut bob = Person::new(2, 202);
+    let first = send(&mut alice, &mut bob, "first");
+    receive(&mut bob, &alice, &first).unwrap();
+    let reply = send(&mut bob, &mut alice, "reply");
+    receive(&mut alice, &bob, &reply).unwrap();
+    for i in 0..3 {
+        let env = send(&mut alice, &mut bob, &format!("more {i}"));
+        receive(&mut bob, &alice, &env).unwrap();
+    }
+    let snap = bob.device.snapshot().unwrap();
+    bob.device = LocalDevice::restore(&snap).unwrap();
+    assert_eq!(receive(&mut bob, &alice, &first).err(), Some(km_core::CoreError::Duplicate));
+}
+
+#[test]
 fn desync_recovery_with_a_fresh_session() {
     let mut alice = Person::new(1, 101);
     let mut bob = Person::new(2, 202);

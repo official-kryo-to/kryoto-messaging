@@ -62,7 +62,7 @@ pub struct Content {
     /// records a send time, so this is the only one there is.
     #[prost(uint64, tag = "3")]
     pub sent_at_ms: u64,
-    #[prost(oneof = "content::Body", tags = "10, 11, 12, 13, 14, 15, 16")]
+    #[prost(oneof = "content::Body", tags = "10, 11, 12, 13, 14, 15, 16, 17, 18")]
     pub body: Option<content::Body>,
 }
 
@@ -83,6 +83,10 @@ pub mod content {
         Reaction(super::Reaction),
         #[prost(message, tag = "16")]
         Gif(super::Gif),
+        #[prost(message, tag = "17")]
+        Invite(super::Invite),
+        #[prost(message, tag = "18")]
+        GroupMeta(super::GroupMeta),
     }
 }
 
@@ -163,4 +167,33 @@ pub struct Gif {
     /// Shown while loading, and to readers who turned automatic GIFs off.
     #[prost(string, tag = "6")]
     pub title: String,
+}
+
+/// "Come and play": a game, and when the host is in a Steam lobby (Kryoto
+/// Online games), which one. No secrets: a lobby id only lets someone ask to
+/// join, and the game decides. Expires quickly, because lobbies do.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Invite {
+    /// kryo.to game slug.
+    #[prost(string, tag = "1")]
+    pub slug: String,
+    #[prost(string, tag = "2")]
+    pub title: String,
+    /// Steam lobby id (decimal), or empty: launch together, join in game.
+    #[prost(string, tag = "3")]
+    pub steam_lobby: String,
+    /// The host's Steam id (decimal), for steam://joinlobby while the game runs.
+    #[prost(string, tag = "4")]
+    pub host_steam_id: String,
+    /// Sender's clock, milliseconds.
+    #[prost(uint64, tag = "5")]
+    pub expires_at_ms: u64,
+}
+
+/// A group's name, sent to its members whenever it is set and when someone
+/// is added (the server never knows it).
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GroupMeta {
+    #[prost(string, tag = "1")]
+    pub name: String,
 }

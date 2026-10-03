@@ -27,7 +27,7 @@ pub struct ClientFrame {
     pub request_id: u32,
     #[prost(
         oneof = "client_frame::Kind",
-        tags = "10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24"
+        tags = "10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29"
     )]
     pub kind: Option<client_frame::Kind>,
 }
@@ -65,6 +65,16 @@ pub mod client_frame {
         BackupDelete(super::Empty),
         #[prost(message, tag = "24")]
         ListMyDevices(super::Empty),
+        #[prost(message, tag = "25")]
+        GroupCreate(super::GroupCreate),
+        #[prost(message, tag = "26")]
+        GroupGet(super::GroupRef),
+        #[prost(message, tag = "27")]
+        GroupList(super::Empty),
+        #[prost(message, tag = "28")]
+        GroupAdd(super::GroupAdd),
+        #[prost(message, tag = "29")]
+        GroupRemove(super::GroupRemove),
     }
 }
 
@@ -74,7 +84,7 @@ pub struct ServerFrame {
     pub request_id: u32,
     #[prost(
         oneof = "server_frame::Kind",
-        tags = "10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22"
+        tags = "10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24"
     )]
     pub kind: Option<server_frame::Kind>,
 }
@@ -108,6 +118,10 @@ pub mod server_frame {
         Backup(super::Backup),
         #[prost(message, tag = "22")]
         DeviceList(super::DeviceList),
+        #[prost(message, tag = "23")]
+        Group(super::GroupInfo),
+        #[prost(message, tag = "24")]
+        Groups(super::GroupsInfo),
     }
 }
 
@@ -327,6 +341,10 @@ pub struct Send {
     /// never stored.
     #[prost(bool, tag = "3")]
     pub ephemeral: bool,
+    /// A group message: every recipient must be a member, as must the sender
+    /// (instead of being friends). 0 for a direct message.
+    #[prost(uint64, tag = "4")]
+    pub group_id: u64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
@@ -385,6 +403,8 @@ pub enum EventKind {
     DevicesChanged = 1,
     /// The user's master key changed.
     MasterKeyChanged = 2,
+    /// A group the user is in changed (members, roles); see `group_id`.
+    GroupChanged = 3,
 }
 
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -393,6 +413,8 @@ pub struct Event {
     pub kind: i32,
     #[prost(uint64, tag = "2")]
     pub user_id: u64,
+    #[prost(uint64, tag = "3")]
+    pub group_id: u64,
 }
 
 // ---- key backup -----------------------------------------------------------
@@ -439,4 +461,68 @@ pub struct MyDevice {
 pub struct DeviceList {
     #[prost(message, repeated, tag = "1")]
     pub devices: Vec<MyDevice>,
+}
+
+// ---- groups -----------------------------------------------------------------
+//
+// The server keeps who is in a group (it has to, to deliver and to refuse
+// outsiders) and nothing else: the group's name and everything said in it
+// travel end-to-end encrypted between the members.
+
+/// Start a group with you as owner and these people (each must be someone
+/// you may message: a friend, or an accepted message request).
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GroupCreate {
+    #[prost(uint64, repeated, tag = "1")]
+    pub member_ids: Vec<u64>,
+}
+
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GroupRef {
+    #[prost(uint64, tag = "1")]
+    pub group_id: u64,
+}
+
+/// Owners and admins add people they may message.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GroupAdd {
+    #[prost(uint64, tag = "1")]
+    pub group_id: u64,
+    #[prost(uint64, repeated, tag = "2")]
+    pub user_ids: Vec<u64>,
+}
+
+/// Remove someone (owners and admins), or yourself (leave).
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GroupRemove {
+    #[prost(uint64, tag = "1")]
+    pub group_id: u64,
+    #[prost(uint64, tag = "2")]
+    pub user_id: u64,
+}
+
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GroupMember {
+    #[prost(uint64, tag = "1")]
+    pub user_id: u64,
+    /// "owner", "admin" or "member".
+    #[prost(string, tag = "2")]
+    pub role: String,
+}
+
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GroupInfo {
+    #[prost(uint64, tag = "1")]
+    pub group_id: u64,
+    #[prost(message, repeated, tag = "2")]
+    pub members: Vec<GroupMember>,
+    /// Goes up with every membership change.
+    #[prost(uint32, tag = "3")]
+    pub version: u32,
+}
+
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GroupsInfo {
+    #[prost(message, repeated, tag = "1")]
+    pub groups: Vec<GroupInfo>,
 }

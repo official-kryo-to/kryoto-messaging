@@ -53,6 +53,25 @@ pub fn dm_peer(conversation_id: &[u8], me: u64) -> Option<u64> {
     }
 }
 
+/// A group conversation: "grp:" + the group id, big-endian.
+pub fn group_conversation_id(group_id: u64) -> Vec<u8> {
+    let mut id = Vec::with_capacity(12);
+    id.extend_from_slice(b"grp:");
+    id.extend_from_slice(&group_id.to_be_bytes());
+    id
+}
+
+/// The group a conversation id names, if it is a group's.
+pub fn group_of(conversation_id: &[u8]) -> Option<u64> {
+    if conversation_id.len() != 12 || &conversation_id[..4] != b"grp:" {
+        return None;
+    }
+    Some(u64::from_be_bytes(conversation_id[4..12].try_into().ok()?))
+}
+
+/// The longest group name.
+pub const GROUP_NAME_LIMIT: usize = 64;
+
 /// Media hosts each GIF provider serves from. Anything else is never loaded:
 /// a message must not be able to make your app fetch an arbitrary address.
 fn gif_host_allowed(provider: &str, host: &str) -> bool {
@@ -102,6 +121,10 @@ pub fn validate_outgoing(content: &Content, supporter: bool) -> Result<()> {
                 return Err(CoreError::Malformed);
             }
         }
+        Some(Body::Invite(i)) if !invite_valid(i) => return Err(CoreError::Malformed),
+        Some(Body::GroupMeta(g)) if g.name.trim().is_empty() || g.name.chars().count() > GROUP_NAME_LIMIT => {
+            return Err(CoreError::Malformed)
+        }
         Some(Body::Gif(g)) => {
             // GIFs are a supporter perk.
             if !supporter {
@@ -114,6 +137,21 @@ pub fn validate_outgoing(content: &Content, supporter: bool) -> Result<()> {
         _ => {}
     }
     Ok(())
+}
+
+/// An invite a client may send or show: a real-looking slug, a short title,
+/// and lobby/host ids that are plain decimal numbers (they end up on a
+/// command line and in a steam:// link, so nothing else is allowed).
+pub fn invite_valid(i: &km_proto::Invite) -> bool {
+    let digits = |s: &str| s.is_empty() || (s.len() <= 20 && s.bytes().all(|b| b.is_ascii_digit()));
+    !i.slug.is_empty()
+        && i.slug.len() <= 120
+        && i.slug.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+        && !i.title.trim().is_empty()
+        && i.title.chars().count() <= 120
+        && digits(&i.steam_lobby)
+        && digits(&i.host_steam_id)
+        && i.expires_at_ms > 0
 }
 
 /// What a receiver shows for an incoming message.
@@ -186,6 +224,40 @@ mod tests {
         match receive_rules(&long, false) {
             Shown::Truncated(t) => assert_eq!(t.chars().count(), TEXT_LIMIT),
             other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn group_conversation_ids_round_trip_and_never_look_like_dms() {
+        let id = group_conversation_id(987_654_321);
+        assert_eq!(group_of(&id), Some(987_654_321));
+        assert_eq!(dm_peer(&id, 987_654_321), None);
+        assert_eq!(group_of(&dm_conversation_id(1, 2)), None);
+        assert!(validate_outgoing(&content(Body::GroupMeta(km_proto::GroupMeta { name: "Lethal crew".into() })), false).is_ok());
+        assert!(validate_outgoing(&content(Body::GroupMeta(km_proto::GroupMeta { name: " ".into() })), false).is_err());
+        assert!(validate_outgoing(&content(Body::GroupMeta(km_proto::GroupMeta { name: "x".repeat(65) })), false).is_err());
+    }
+
+    #[test]
+    fn invites_carry_only_safe_values() {
+        let ok = km_proto::Invite {
+            slug: "lethal-company".into(),
+            title: "Lethal Company".into(),
+            steam_lobby: "109775241075364289".into(),
+            host_steam_id: "76561198000000000".into(),
+            expires_at_ms: 1,
+        };
+        assert!(invite_valid(&ok));
+        assert!(validate_outgoing(&content(Body::Invite(ok.clone())), false).is_ok(), "anyone may invite");
+        for bad in [
+            km_proto::Invite { slug: "../x".into(), ..ok.clone() },
+            km_proto::Invite { steam_lobby: "1 -exec".into(), ..ok.clone() },
+            km_proto::Invite { host_steam_id: "abc".into(), ..ok.clone() },
+            km_proto::Invite { title: " ".into(), ..ok.clone() },
+            km_proto::Invite { expires_at_ms: 0, ..ok.clone() },
+        ] {
+            assert!(!invite_valid(&bad), "{bad:?}");
+            assert!(validate_outgoing(&content(Body::Invite(bad)), true).is_err());
         }
     }
 
