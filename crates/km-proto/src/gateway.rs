@@ -27,7 +27,7 @@ pub struct ClientFrame {
     pub request_id: u32,
     #[prost(
         oneof = "client_frame::Kind",
-        tags = "10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29"
+        tags = "10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30"
     )]
     pub kind: Option<client_frame::Kind>,
 }
@@ -75,6 +75,8 @@ pub mod client_frame {
         GroupAdd(super::GroupAdd),
         #[prost(message, tag = "29")]
         GroupRemove(super::GroupRemove),
+        #[prost(message, tag = "30")]
+        AttachmentTicket(super::AttachmentTicket),
     }
 }
 
@@ -84,7 +86,7 @@ pub struct ServerFrame {
     pub request_id: u32,
     #[prost(
         oneof = "server_frame::Kind",
-        tags = "10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24"
+        tags = "10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25"
     )]
     pub kind: Option<server_frame::Kind>,
 }
@@ -122,6 +124,8 @@ pub mod server_frame {
         Group(super::GroupInfo),
         #[prost(message, tag = "24")]
         Groups(super::GroupsInfo),
+        #[prost(message, tag = "25")]
+        AttachmentUpload(super::AttachmentUpload),
     }
 }
 
@@ -525,4 +529,31 @@ pub struct GroupInfo {
 pub struct GroupsInfo {
     #[prost(message, repeated, tag = "1")]
     pub groups: Vec<GroupInfo>,
+}
+
+// ---- attachments ----------------------------------------------------------
+//
+// Encrypted files go over HTTP, not the WebSocket: ask for a ticket here,
+// PUT the ciphertext to `/v1/attachments/<id>?t=<upload_token>`, and put the
+// id and download token (with the key) in the end-to-end encrypted message.
+// Readers GET `/v1/attachments/<id>?t=<download_token>`.
+
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct AttachmentTicket {
+    /// Ciphertext size in bytes (the upload may not exceed it).
+    #[prost(uint64, tag = "1")]
+    pub size: u64,
+}
+
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct AttachmentUpload {
+    #[prost(uint64, tag = "1")]
+    pub id: u64,
+    #[prost(string, tag = "2")]
+    pub upload_token: String,
+    #[prost(string, tag = "3")]
+    pub download_token: String,
+    /// When the server deletes the file.
+    #[prost(int64, tag = "4")]
+    pub expires_at_ms: i64,
 }

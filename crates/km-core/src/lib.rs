@@ -15,6 +15,7 @@
 //!
 //! See `FRIENDS-AND-CHAT.md` in the Kryoto workspace for the full design.
 
+mod attachment;
 mod backup;
 pub mod chat;
 mod device;
@@ -23,6 +24,7 @@ mod fingerprint;
 mod keys;
 mod trust;
 
+pub use attachment::{open_attachment, seal_attachment, SealedAttachment, MAX_ATTACHMENT};
 pub use backup::{open_backup, seal_backup, RecoveryKey};
 pub use device::{new_message_id, Inbound, LocalDevice};
 pub use error::{CoreError, Result};

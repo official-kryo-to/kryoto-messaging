@@ -62,7 +62,7 @@ pub struct Content {
     /// records a send time, so this is the only one there is.
     #[prost(uint64, tag = "3")]
     pub sent_at_ms: u64,
-    #[prost(oneof = "content::Body", tags = "10, 11, 12, 13, 14, 15, 16, 17, 18")]
+    #[prost(oneof = "content::Body", tags = "10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20")]
     pub body: Option<content::Body>,
 }
 
@@ -87,6 +87,10 @@ pub mod content {
         Invite(super::Invite),
         #[prost(message, tag = "18")]
         GroupMeta(super::GroupMeta),
+        #[prost(message, tag = "19")]
+        Attachment(super::Attachment),
+        #[prost(message, tag = "20")]
+        Call(super::Call),
     }
 }
 
@@ -196,4 +200,62 @@ pub struct Invite {
 pub struct GroupMeta {
     #[prost(string, tag = "1")]
     pub name: String,
+}
+
+/// A file: where the encrypted bytes are on the gateway, and what is needed
+/// to fetch, check and open them (km-core `open_attachment`).
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Attachment {
+    #[prost(uint64, tag = "1")]
+    pub id: u64,
+    /// Lets anyone holding the message download the ciphertext.
+    #[prost(string, tag = "2")]
+    pub download_token: String,
+    #[prost(bytes = "vec", tag = "3")]
+    pub key: Vec<u8>,
+    /// SHA-256 of the ciphertext.
+    #[prost(bytes = "vec", tag = "4")]
+    pub sha256: Vec<u8>,
+    #[prost(string, tag = "5")]
+    pub name: String,
+    #[prost(string, tag = "6")]
+    pub mime: String,
+    /// Plaintext size in bytes.
+    #[prost(uint64, tag = "7")]
+    pub size: u64,
+    /// Images: their size in pixels (0 if not an image or unknown).
+    #[prost(uint32, tag = "8")]
+    pub width: u32,
+    #[prost(uint32, tag = "9")]
+    pub height: u32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum CallKind {
+    Unspecified = 0,
+    /// "Ringing": the caller's WebRTC offer.
+    Offer = 1,
+    Answer = 2,
+    /// One ICE candidate (trickle).
+    Ice = 3,
+    Hangup = 4,
+    Decline = 5,
+    /// Already in another call.
+    Busy = 6,
+}
+
+/// Voice call signalling, end-to-end encrypted like everything else: the
+/// WebRTC session description (with its DTLS fingerprint) and ICE candidates.
+/// Because the fingerprints arrive this way, the media connection is
+/// end-to-end encrypted too. Always sent ephemeral (never stored).
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Call {
+    #[prost(bytes = "vec", tag = "1")]
+    pub call_id: Vec<u8>,
+    #[prost(enumeration = "CallKind", tag = "2")]
+    pub kind: i32,
+    /// SDP for Offer/Answer, a candidate (JSON) for Ice.
+    #[prost(string, tag = "3")]
+    pub payload: String,
 }

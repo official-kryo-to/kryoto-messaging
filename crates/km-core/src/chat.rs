@@ -122,6 +122,8 @@ pub fn validate_outgoing(content: &Content, supporter: bool) -> Result<()> {
             }
         }
         Some(Body::Invite(i)) if !invite_valid(i) => return Err(CoreError::Malformed),
+        Some(Body::Attachment(a)) if !attachment_valid(a) => return Err(CoreError::Malformed),
+        Some(Body::Call(c)) if !call_valid(c) => return Err(CoreError::Malformed),
         Some(Body::GroupMeta(g)) if g.name.trim().is_empty() || g.name.chars().count() > GROUP_NAME_LIMIT => {
             return Err(CoreError::Malformed)
         }
@@ -152,6 +154,26 @@ pub fn invite_valid(i: &km_proto::Invite) -> bool {
         && digits(&i.steam_lobby)
         && digits(&i.host_steam_id)
         && i.expires_at_ms > 0
+}
+
+/// An attachment a client may send or show: a real key and hash, a token
+/// and name that are safe to use in a URL and a file name.
+pub fn attachment_valid(a: &km_proto::Attachment) -> bool {
+    a.id != 0
+        && a.key.len() == 32
+        && a.sha256.len() == 32
+        && (16..=128).contains(&a.download_token.len())
+        && a.download_token.bytes().all(|b| b.is_ascii_hexdigit())
+        && !a.name.trim().is_empty()
+        && a.name.chars().count() <= 200
+        && !a.name.chars().any(|c| c.is_control() || matches!(c, '/' | '\\'))
+        && a.mime.len() <= 100
+        && a.size <= crate::MAX_ATTACHMENT as u64
+}
+
+/// Call signalling within sane bounds (an SDP is a few KB).
+pub fn call_valid(c: &km_proto::Call) -> bool {
+    c.call_id.len() == 16 && km_proto::CallKind::try_from(c.kind).is_ok_and(|k| k != km_proto::CallKind::Unspecified) && c.payload.len() <= 16 * 1024
 }
 
 /// What a receiver shows for an incoming message.
