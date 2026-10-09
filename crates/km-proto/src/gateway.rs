@@ -27,7 +27,7 @@ pub struct ClientFrame {
     pub request_id: u32,
     #[prost(
         oneof = "client_frame::Kind",
-        tags = "10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30"
+        tags = "10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32"
     )]
     pub kind: Option<client_frame::Kind>,
 }
@@ -77,6 +77,10 @@ pub mod client_frame {
         GroupRemove(super::GroupRemove),
         #[prost(message, tag = "30")]
         AttachmentTicket(super::AttachmentTicket),
+        #[prost(message, tag = "31")]
+        PushSubscribe(super::PushSubscribe),
+        #[prost(message, tag = "32")]
+        PushUnsubscribe(super::Empty),
     }
 }
 
@@ -204,6 +208,10 @@ pub struct Ready {
     pub master_key: Vec<u8>,
     #[prost(uint32, tag = "7")]
     pub min_protocol_version: u32,
+    /// The server's VAPID public key (uncompressed P-256 point, 65 bytes), for
+    /// a browser's push subscription. Empty when this server sends no pushes.
+    #[prost(bytes = "vec", tag = "8")]
+    pub push_public_key: Vec<u8>,
 }
 
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -556,4 +564,20 @@ pub struct AttachmentUpload {
     /// When the server deletes the file.
     #[prost(int64, tag = "4")]
     pub expires_at_ms: i64,
+}
+
+// ---- web push --------------------------------------------------------------
+
+/// A browser's Web Push subscription for this device. Answered with `Ok`.
+///
+/// Only the endpoint is kept: pushes carry no payload (nothing to encrypt, so
+/// no `p256dh`/`auth` keys), just "something is waiting". The service worker
+/// shows a notice and the page fetches the messages over the WebSocket. The
+/// push service learns that a message arrived, never from whom or what.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct PushSubscribe {
+    /// The push service URL from `PushSubscription.endpoint` (https, a known
+    /// push service, at most 1024 bytes).
+    #[prost(string, tag = "1")]
+    pub endpoint: String,
 }

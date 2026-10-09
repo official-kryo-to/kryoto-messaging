@@ -194,6 +194,7 @@ fn server_to_json(f: &ServerFrame) -> Value {
         Some(S::Ready(r)) => ("ready", json!({
             "userId": r.user_id.to_string(), "deviceId": r.device_id.to_string(), "oneTimeKeys": r.one_time_keys,
             "hasFallbackKey": r.has_fallback_key, "certified": r.certified, "masterKey": hex::encode(&r.master_key),
+            "pushKey": hex::encode(&r.push_public_key),
         })),
         Some(S::Error(e)) => ("error", json!({ "code": e.code, "message": e.message })),
         Some(S::Ok(_)) => ("ok", json!({})),
@@ -416,6 +417,8 @@ impl Kryo {
             "groupAdd" => C::GroupAdd(gw::GroupAdd { group_id: num(&a["groupId"])?, user_ids: ids(&a["userIds"])? }),
             "groupRemove" => C::GroupRemove(gw::GroupRemove { group_id: num(&a["groupId"])?, user_id: num(&a["userId"])? }),
             "attachmentTicket" => C::AttachmentTicket(gw::AttachmentTicket { size: num(&a["size"])? }),
+            "pushSubscribe" => C::PushSubscribe(gw::PushSubscribe { endpoint: a["endpoint"].as_str().unwrap_or_default().to_string() }),
+            "pushUnsubscribe" => C::PushUnsubscribe(gw::Empty {}),
             other => return Err(err(format!("unknown request {other}"))),
         };
         Ok(frame(request_id, k))
