@@ -9,6 +9,7 @@ WebAssembly. No cryptography is written anywhere else.
 | `km-proto` | Wire formats (protobuf via `prost`, no `protoc`) |
 | `km-core` | Master key + device cross-signing, Olm sessions (Double Ratchet), sealed envelopes, trust pinning and key-change detection, safety numbers. No I/O |
 | `km-store-sqlcipher` | The desktop's encrypted database for that state |
+| `km-wasm` | The web client's binding (`wasm-bindgen`): one `Kryo` object holding the account state, gateway frames, encrypt/decrypt, verification, key backup, attachment sealing |
 
 ## Building blocks
 
@@ -24,6 +25,9 @@ maintained, reviewed library:
 - **Signatures**: Ed25519.
 - **Safety numbers**: Signal's numeric fingerprint construction (iterated
   SHA-512), computed over each user's master key.
+- **Key backup and attachments**: XChaCha20-Poly1305 (`chacha20poly1305`).
+  The backup key is a 240-bit recovery code; the backup is bound to the
+  account it belongs to.
 - **At rest (desktop)**: SQLCipher.
 
 How these fit together: `FRIENDS-AND-CHAT.md` in the Kryoto workspace.
@@ -35,7 +39,14 @@ cargo test --workspace                                   # native, incl. propert
 cargo test -p km-core --target wasm32-unknown-unknown --test wasm   # inside WebAssembly (Node)
 ```
 
-The WebAssembly tests need `rustup target add wasm32-unknown-unknown` and
+Build the web client's module (used by `kryoto-desktop`'s `pnpm web:wasm`):
+
+```text
+cargo build -p km-wasm --target wasm32-unknown-unknown --release
+wasm-bindgen --target web --out-dir <dir> target/wasm32-unknown-unknown/release/km_wasm.wasm
+```
+
+The WebAssembly tests and build need `rustup target add wasm32-unknown-unknown` and
 `cargo install wasm-bindgen-cli --version <the version in Cargo.lock>`.
 
 The SQLCipher store compiles OpenSSL from source, which needs a full Perl

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/km-proto", "crates/km-core", "crates/km-store-sqlcipher"]
+members = ["crates/km-proto", "crates/km-core", "crates/km-store-sqlcipher", "crates/km-wasm"]
 
 [workspace.package]
 version = "0.1.0"
